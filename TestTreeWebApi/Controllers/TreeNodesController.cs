@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using TestTreeWebApi.Services;
-using TestTreeWebApi.ServiceModel;
+using TestTreeWebApi.ServiceModels;
 using System.Collections.Generic;
-using TestTreeWebApi.ApiModel;
+using TestTreeWebApi.ApiModels;
 
 namespace TestTreeWebApi.Controllers
 {
@@ -33,17 +33,6 @@ namespace TestTreeWebApi.Controllers
             return Ok(responses);
         }
 
-        [HttpGet("{id}")]
-        public ActionResult<TreeNodeResponse> GetById(long id)
-        {
-            var treeNode = _service.GetById(id);
-            if (treeNode == null)
-            {
-                return NotFound();
-            }
-            return Ok(new TreeNodeResponse(treeNode));
-        }
-
         [HttpGet("by-name/{name}")]
         public ActionResult<TreeNodeResponse> GetByName(string name)
         {
@@ -67,9 +56,12 @@ namespace TestTreeWebApi.Controllers
         }
 
         [HttpPut("{name}")]
-        public ActionResult<TreeNodeResponse> UpdateName(string name, TreeNodeUpdateRequest request)
+        public ActionResult<TreeNodeResponse> UpdateName(string name, TreeNodeUpdateNameRequest request)
         {
-            var treeNode = new TreeNodeDTO(request);
+            var treeNode = new TreeNodeDTO()
+            {
+                Name = request.Name
+            };
             treeNode = _service.Update(name, treeNode);
             if (treeNode == null)
             {
@@ -78,19 +70,58 @@ namespace TestTreeWebApi.Controllers
             return Ok(new TreeNodeResponse(treeNode));
         }
 
+        [HttpPut("{name}/update-parent")]
+        public ActionResult<TreeNodeResponse> UpdateParent(string name, TreeNodeUpdateParentRequest request)
+        {
+            var parentTreeNode = new TreeNodeDTO()
+            {
+                Name = request.ParentName
+            };
+            TreeNodeDTO treeNode;
+            try
+            {
+                treeNode = _service.UpdateParent(name, parentTreeNode);
+            }
+            catch (TreeNodeException e)
+            {
+                return NotFound(e.Message);
+            }
+            return Ok(new TreeNodeResponse(treeNode));
+        }
+
         [HttpPost]
         public ActionResult<TreeNodeResponse> AddToRoot(TreeNodeCreateRequest request)
         {
-            var treeNode = new TreeNodeDTO(request);
-            treeNode = _service.Create(null, treeNode);
+            var treeNode = new TreeNodeDTO()
+            {
+                Name = request.Name
+            };
+            try
+            {
+                treeNode = _service.Create(null, treeNode);
+            }
+            catch (TreeNodeException e)
+            {
+                return Conflict(e.Message);
+            }
             return Ok(new TreeNodeResponse(treeNode));
         }
 
         [HttpPost("{name}/add-child")]
         public ActionResult<TreeNodeResponse> AddChildNode(string name, TreeNodeCreateRequest request)
         {
-            var treeNode = new TreeNodeDTO(request);
-            treeNode = _service.Create(name, treeNode);
+            var treeNode = new TreeNodeDTO()
+            {
+                Name = request.Name
+            };
+            try
+            {
+                treeNode = _service.Create(name, treeNode);
+            }
+            catch (TreeNodeException e)
+            {
+                return Conflict(e.Message);
+            }
             if (treeNode == null)
             {
                 return NotFound();

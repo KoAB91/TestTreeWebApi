@@ -3,7 +3,7 @@ using System.Linq;
 using TestTreeWebApi.DatabaseModels;
 using TestTreeWebApi.Enums;
 using Microsoft.EntityFrameworkCore;
-using TestTreeWebApi.ServiceModel;
+using TestTreeWebApi.ServiceModels;
 using System.Text;
 
 namespace TestTreeWebApi.Services
@@ -32,21 +32,6 @@ namespace TestTreeWebApi.Services
             }
             return treeNodeDTOList;
         }
-
-        public TreeNodeDTO GetById(long id)
-        {
-            var treeNode = _context.TreeNodes
-                                    .Where(t => t.Id == id)
-                                    .Include(t => t.Childs)
-                                    .FirstOrDefault();
-            if (treeNode == null)
-            {
-                return null;
-            }
-            AddAllChildrenTo(treeNode);
-            return ConvertToDTO(treeNode);
-        }
-
         
         public TreeNodeDTO GetByName(string name)
         {
@@ -106,10 +91,53 @@ namespace TestTreeWebApi.Services
             return ConvertToDTO(treeNode);
         }
 
+        public TreeNodeDTO UpdateParent(string name, TreeNodeDTO parentTreeNodeDTO)
+        {
+            var treeNode = _context.TreeNodes
+                                   .Where(t => t.Name.Equals(name))
+                                   .Include(t => t.Childs)
+                                   .Include(t => t.Parent)
+                                   .FirstOrDefault();
+            if (treeNode == null)
+            {
+                throw new TreeNodeException($"No object with such name: \"{name}\"");
+            }
+            string parentName = parentTreeNodeDTO.Name;
+            if(parentName != null) //add to parent node
+            {
+                var parentTreeNode = _context.TreeNodes
+                                  .Where(t => t.Name.Equals(parentName))
+                                  .FirstOrDefault();
+                if (parentTreeNode == null)
+                {
+                    throw new TreeNodeException($"No object with such name: \"{parentName}\"");
+                }
+                treeNode.ParentId = parentTreeNode.Id;
+                treeNode.Parent = parentTreeNode;
+            } else //add to root
+            {
+                treeNode.ParentId = null;
+                treeNode.Parent = null;
+            }
+           
+            _context.SaveChanges();
+            AddAllChildrenTo(treeNode);
+            return ConvertToDTO(treeNode);
+        }
+
         public TreeNodeDTO Create(string name, TreeNodeDTO treeNodeDTO)
         {
-            var treeNode = new TreeNode();
-            treeNode.Name = treeNodeDTO.Name;
+            var treeNode = _context.TreeNodes
+                                         .Where(t => t.Name.Equals(treeNodeDTO.Name)).FirstOrDefault();
+            if (treeNode != null)
+            {
+                throw new TreeNodeException("Object with such name is already created.");
+            }
+            treeNode = new TreeNode()
+            {
+                Name = treeNodeDTO.Name
+            };
+
             if (name != null)
             {
                 var parentTreeNode = _context.TreeNodes
@@ -138,6 +166,7 @@ namespace TestTreeWebApi.Services
                 return DeleteResponse.NOT_FOUND;
             }
             RemoveBranchStartingFrom(treeNode);
+            _context.TreeNodes.Remove(treeNode);
             _context.SaveChanges();
             return DeleteResponse.ОК;
         }
