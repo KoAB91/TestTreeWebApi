@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
-using TestTreeWebApi.ServiceModel;
+using TestTreeWebApi.ServiceModels;
 
-namespace TestTreeWebApi.ApiModel
+namespace TestTreeWebApi.ApiModels
 {
     public class TreeNodeResponse
     {

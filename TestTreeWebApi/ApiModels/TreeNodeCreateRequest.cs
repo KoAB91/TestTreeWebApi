@@ -1,5 +1,5 @@
 ﻿
-namespace TestTreeWebApi.ApiModel
+namespace TestTreeWebApi.ApiModels
 {
     public class TreeNodeCreateRequest
     {
