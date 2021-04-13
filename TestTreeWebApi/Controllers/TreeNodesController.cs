@@ -58,11 +58,7 @@ namespace TestTreeWebApi.Controllers
         [HttpPut("{name}")]
         public ActionResult<TreeNodeResponse> UpdateName(string name, TreeNodeUpdateNameRequest request)
         {
-            var treeNode = new TreeNodeDTO()
-            {
-                Name = request.Name
-            };
-            treeNode = _service.Update(name, treeNode);
+            var treeNode = _service.UpdateName(name, request.Name);
             if (treeNode == null)
             {
                 return NotFound();
@@ -73,18 +69,18 @@ namespace TestTreeWebApi.Controllers
         [HttpPut("{name}/update-parent")]
         public ActionResult<TreeNodeResponse> UpdateParent(string name, TreeNodeUpdateParentRequest request)
         {
-            var parentTreeNode = new TreeNodeDTO()
-            {
-                Name = request.ParentName
-            };
             TreeNodeDTO treeNode;
             try
             {
-                treeNode = _service.UpdateParent(name, parentTreeNode);
+                treeNode = _service.UpdateParent(name, request.ParentName);
             }
-            catch (TreeNodeException e)
+            catch (TreeNodeMoveException e)
             {
-                return NotFound(e.Message);
+                return Conflict(e.Message);
+            }
+            catch (TreeNodeCreateException ex)
+            {
+                return NotFound(ex.Message);
             }
             return Ok(new TreeNodeResponse(treeNode));
         }
@@ -98,9 +94,9 @@ namespace TestTreeWebApi.Controllers
             };
             try
             {
-                treeNode = _service.Create(null, treeNode);
+                treeNode = _service.Create(treeNode);
             }
-            catch (TreeNodeException e)
+            catch (TreeNodeCreateException e)
             {
                 return Conflict(e.Message);
             }
@@ -118,7 +114,7 @@ namespace TestTreeWebApi.Controllers
             {
                 treeNode = _service.Create(name, treeNode);
             }
-            catch (TreeNodeException e)
+            catch (TreeNodeCreateException e)
             {
                 return Conflict(e.Message);
             }
