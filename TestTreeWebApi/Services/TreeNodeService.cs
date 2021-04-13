@@ -75,7 +75,7 @@ namespace TestTreeWebApi.Services
             return path.ToString();
         }
 
-        public TreeNodeDTO Update(string name, TreeNodeDTO treeNodeDTO)
+        public TreeNodeDTO UpdateName(string name, string newName)
         {
             var treeNode = _context.TreeNodes
                                     .Where(t => t.Name.Equals(name))
@@ -85,13 +85,13 @@ namespace TestTreeWebApi.Services
             {
                 return null;
             }
-            treeNode.Name = treeNodeDTO.Name;
+            treeNode.Name = newName;
             _context.SaveChanges();
             AddAllChildrenTo(treeNode);
             return ConvertToDTO(treeNode);
         }
 
-        public TreeNodeDTO UpdateParent(string name, TreeNodeDTO parentTreeNodeDTO)
+        public TreeNodeDTO UpdateParent(string name, string parentName)
         {
             var treeNode = _context.TreeNodes
                                    .Where(t => t.Name.Equals(name))
@@ -100,24 +100,35 @@ namespace TestTreeWebApi.Services
                                    .FirstOrDefault();
             if (treeNode == null)
             {
-                throw new TreeNodeException($"No object with such name: \"{name}\"");
+                throw new TreeNodeCreateException($"No object with such name: \"{name}\"");
             }
-            string parentName = parentTreeNodeDTO.Name;
-            if(parentName != null) //add to parent node
+
+            if (!treeNode.ParentId.HasValue)
+            {
+                throw new TreeNodeMoveException("Root movement is prohibited");
+            }
+            
+            if(parentName != null)
             {
                 var parentTreeNode = _context.TreeNodes
                                   .Where(t => t.Name.Equals(parentName))
                                   .FirstOrDefault();
                 if (parentTreeNode == null)
                 {
-                    throw new TreeNodeException($"No object with such name: \"{parentName}\"");
+                    throw new TreeNodeCreateException($"No object with such name: \"{parentName}\"");
                 }
                 treeNode.ParentId = parentTreeNode.Id;
                 treeNode.Parent = parentTreeNode;
-            } else //add to root
+            } else
             {
+                var root = _context.TreeNodes
+                                        .Where(t => !t.ParentId.HasValue)
+                                        .FirstOrDefault();
+                root.ParentId = treeNode.ParentId;
+                root.Parent = treeNode;
                 treeNode.ParentId = null;
                 treeNode.Parent = null;
+                treeNode.Childs.Add(root);
             }
            
             _context.SaveChanges();
@@ -125,34 +136,46 @@ namespace TestTreeWebApi.Services
             return ConvertToDTO(treeNode);
         }
 
+        public TreeNodeDTO Create(TreeNodeDTO treeNodeDTO)
+        {
+            return Create(null, treeNodeDTO);
+        }
+
         public TreeNodeDTO Create(string name, TreeNodeDTO treeNodeDTO)
         {
+            if (!_context.TreeNodes.Any())
+            {
+                var root = new TreeNode();
+                root.Name = treeNodeDTO.Name;
+                root = _context.TreeNodes.Add(root)
+                                                .Entity;
+                _context.SaveChanges();
+                return ConvertToDTO(root);
+            }
+
             var treeNode = _context.TreeNodes
-                                         .Where(t => t.Name.Equals(treeNodeDTO.Name)).FirstOrDefault();
+                                      .Where(t => t.Name.Equals(treeNodeDTO.Name))
+                                      .FirstOrDefault();
             if (treeNode != null)
             {
-                throw new TreeNodeException("Object with such name is already created.");
+                throw new TreeNodeCreateException("Object with such name is already created.");
             }
+
             treeNode = new TreeNode()
             {
                 Name = treeNodeDTO.Name
             };
 
+            
             if (name != null)
             {
-                var parentTreeNode = _context.TreeNodes
-                                                .Where(t => t.Name.Equals(name))
-                                                .FirstOrDefault();
-                if (parentTreeNode == null)
-                {
-                    return null;
-                }
-                treeNode.Parent = parentTreeNode;
-                treeNode.ParentId = parentTreeNode.Id;
+                treeNode = AddToParentNode(name, treeNode);
             }
-            var entity =_context.TreeNodes.Add(treeNode);
-            _context.SaveChanges();
-            return ConvertToDTO(entity.Entity);
+            else
+            {
+                treeNode = AddToRoot(treeNode);
+            }
+            return ConvertToDTO(treeNode);
         }
 
         public DeleteResponse Delete(string name)
@@ -169,6 +192,36 @@ namespace TestTreeWebApi.Services
             _context.TreeNodes.Remove(treeNode);
             _context.SaveChanges();
             return DeleteResponse.ОК;
+        }
+
+        public TreeNode AddToRoot(TreeNode treeNode)
+        {
+            treeNode = _context.TreeNodes.Add(treeNode)
+                                                .Entity;
+            var root = _context.TreeNodes
+                                         .Where(t => !t.ParentId.HasValue)
+                                         .FirstOrDefault();
+            root.Parent = treeNode;
+            root.ParentId = treeNode.Id;
+            _context.SaveChanges();
+            return treeNode;
+        }
+
+        public TreeNode AddToParentNode(string name, TreeNode treeNode)
+        {
+            var parentTreeNode = _context.TreeNodes
+                                                .Where(t => t.Name.Equals(name))
+                                                .FirstOrDefault();
+            if (parentTreeNode == null)
+            {
+                throw new TreeNodeCreateException($"No object with such name: \"{name}\"");
+            }
+            treeNode.Parent = parentTreeNode;
+            treeNode.ParentId = parentTreeNode.Id;
+            treeNode = _context.TreeNodes.Add(treeNode)
+                                                .Entity;
+            _context.SaveChanges();
+            return treeNode;
         }
 
         public void AddAllChildrenTo(TreeNode parentTreeNode)
